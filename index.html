@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini WAF Tester</title>
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      max-width: 1000px;
+      margin: 24px auto;
+      padding: 12px
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px
+    }
+
+    label {
+      display: block;
+      margin-top: 8px
+    }
+
+    textarea {
+      width: 100%;
+      height: 120px
+    }
+
+    button {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #0b74de;
+      color: #fff;
+      border: 0
+    }
+
+    pre {
+      background: #f8f8f8;
+      padding: 12px;
+      border-radius: 6px;
+      overflow: auto
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Mini WAF — Tester & Logs</h1>
+  </header>
+
+  <section class="card">
+    <h2>Send a request to the backend</h2>
+    <label>Method:
+      <select id="method">
+        <option>GET</option>
+        <option>POST</option>
+      </select>
+    </label>
+    <label>Path (e.g. /app):
+      <input id="path" value="/app" style="width:100%" />
+    </label>
+    <label>Query string (e.g. id=1):
+      <input id="qs" style="width:100%" />
+    </label>
+    <label>Body (raw):
+      <textarea id="body"></textarea>
+    </label>
+    <button id="send">Send request</button>
+    <h3>Response</h3>
+    <pre id="response">(none)</pre>
+  </section>
+
+  <section class="card">
+    <h2>Recent WAF Logs</h2>
+    <button id="refreshLogs">Refresh Logs</button>
+    <div id="logs"></div>
+  </section>
+
+  <script>
+    async function sendRequest() {
+      const method = document.getElementById('method').value;
+      const path = document.getElementById('path').value || '/app';
+      const qs = document.getElementById('qs').value;
+      const body = document.getElementById('body').value;
+      let url = path + (qs ? ('?' + qs) : '');
+      const opts = { method };
+      if (method === 'POST') {
+        opts.headers = { 'Content-Type': 'text/plain' };
+        opts.body = body;
+      }
+      try {
+        const r = await fetch(url, opts);
+        const txt = await r.text();
+        document.getElementById('response').textContent = `HTTP ${r.status}\n\n` + txt;
+      } catch (err) {
+        document.getElementById('response').textContent = 'Error: ' + err;
+      }
+    }
+
+    async function refreshLogs() {
+      try {
+        const r = await fetch('/admin/logs?limit=50');
+        const j = await r.json();
+        const container = document.getElementById('logs');
+        container.innerHTML = '';
+        j.logs.forEach(l => {
+          const time = new Date(l.time * 1000).toLocaleString();
+          const el = document.createElement('div');
+          el.style.borderBottom = '1px solid #eee';
+          el.style.padding = '6px 0';
+          el.innerHTML = `<strong>${time}</strong> — ${l.ip} — ${l.method} ${l.path} — score: ${l.score} — blocked: ${l.blocked}<br/><small>${JSON.stringify(l.matched_rules)}</small>`;
+          container.appendChild(el);
+        });
+      } catch (err) { console.error(err); }
+    }
+
+    document.getElementById('send').addEventListener('click', sendRequest);
+    document.getElementById('refreshLogs').addEventListener('click', refreshLogs);
+    // auto-refresh
+    refreshLogs();
+  </script>
+</body>
+
+</html>
